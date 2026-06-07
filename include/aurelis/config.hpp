@@ -2,64 +2,104 @@
 
 #include "aurelis/lens/config.hpp"
 #include "aurelis/tensor.hpp"
-#include "aurelis/nlohmann/json.hpp"
+#include "aurelis/errors.hpp"
 #include <fstream>
+#include <sstream>
 #include <string>
+#include <vector>
+#include <map>
 
 namespace aurelis {
-
-using json = nlohmann::json;
 
 struct AurelisConfig {
     LensConfig lens;
 
-    // Add other configs here (AureumConfig, ArcConfig, etc.)
+    void save(const std::string& path) const {
+        std::ofstream ofs(path);
+        if (!ofs) {
+            throw AurelisException(ErrorCode::FileNotFound, "Could not open config file for writing: " + path);
+        }
+        ofs << "{\n";
+        ofs << "  \"lens\": {\n";
+        ofs << "    \"vocab_size\": " << lens.vocab_size << ",\n";
+        ofs << "    \"D\": " << lens.D << ",\n";
+        ofs << "    \"d_model\": " << lens.d_model << ",\n";
+        ofs << "    \"d_tau\": " << lens.d_tau << ",\n";
+        ofs << "    \"d_ff\": " << lens.d_ff << ",\n";
+        ofs << "    \"num_layers\": " << lens.num_layers << ",\n";
+        ofs << "    \"num_scales\": " << lens.num_scales << ",\n";
+        ofs << "    \"lambda_stab\": " << lens.lambda_stab << ",\n";
+        ofs << "    \"lambda_aux\": " << lens.lambda_aux << ",\n";
+        ofs << "    \"lr\": " << lens.lr << "\n";
+        ofs << "  }\n";
+        ofs << "}\n";
+    }
 
-    void save(const std::string& path) const;
-    static AurelisConfig load(const std::string& path);
+    static AurelisConfig load(const std::string& path) {
+        std::ifstream ifs(path);
+        if (!ifs) {
+            throw AurelisException(ErrorCode::FileNotFound, "Could not open config file for reading: " + path);
+        }
+
+        std::map<std::string, std::string> key_values;
+        std::string line;
+        while (std::getline(ifs, line)) {
+            size_t colon_pos = line.find(':');
+            if (colon_pos != std::string::npos) {
+                std::string key = line.substr(0, colon_pos);
+                std::string value = line.substr(colon_pos + 1);
+                
+                // Trim whitespace and quotes
+                auto trim = [](std::string s) {
+                    s.erase(0, s.find_first_not_of(" \t\n\r\"{,}"));
+                    s.erase(s.find_last_not_of(" \t\n\r\"{,}") + 1);
+                    return s;
+                };
+
+                key = trim(key);
+                value = trim(value);
+                
+                if (!key.empty() && !value.empty()) {
+                    key_values[key] = value;
+                }
+            }
+        }
+
+        AurelisConfig cfg;
+
+        auto get_int = [&](const std::string& key, int default_val) -> int {
+            auto it = key_values.find(key);
+            if (it != key_values.end()) {
+                try {
+                    return std::stoi(it->second);
+                } catch (...) {}
+            }
+            return default_val;
+        };
+
+        auto get_float = [&](const std::string& key, float default_val) -> float {
+            auto it = key_values.find(key);
+            if (it != key_values.end()) {
+                try {
+                    return std::stof(it->second);
+                } catch (...) {}
+            }
+            return default_val;
+        };
+
+        cfg.lens.vocab_size = get_int("vocab_size", 16);
+        cfg.lens.D = get_int("D", 64);
+        cfg.lens.d_model = get_int("d_model", 32);
+        cfg.lens.d_tau = get_int("d_tau", 32);
+        cfg.lens.d_ff = get_int("d_ff", 256);
+        cfg.lens.num_layers = get_int("num_layers", 2);
+        cfg.lens.num_scales = get_int("num_scales", 4);
+        cfg.lens.lambda_stab = get_float("lambda_stab", 0.01f);
+        cfg.lens.lambda_aux = get_float("lambda_aux", 0.001f);
+        cfg.lens.lr = get_float("lr", 0.01f);
+
+        return cfg;
+    }
 };
-
-inline void to_json(json& j, const LensConfig& cfg) {
-    j = json{
-        {"vocab_size", cfg.vocab_size},
-        {"D", cfg.D},
-        {"d_model", cfg.d_model},
-        {"d_tau", cfg.d_tau},
-        {"d_ff", cfg.d_ff},
-        {"num_layers", cfg.num_layers},
-        {"num_scales", cfg.num_scales},
-        {"lambda_stab", cfg.lambda_stab},
-        {"lambda_aux", cfg.lambda_aux},
-        {"lr", cfg.lr}
-    };
-}
-
-inline void from_json(const json& j, LensConfig& cfg) {
-    j.at("vocab_size").get_to(cfg.vocab_size);
-    j.at("D").get_to(cfg.D);
-    j.at("d_model").get_to(cfg.d_model);
-    j.at("d_tau").get_to(cfg.d_tau);
-    j.at("d_ff").get_to(cfg.d_ff);
-    j.at("num_layers").get_to(cfg.num_layers);
-    j.at("num_scales").get_to(cfg.num_scales);
-    j.at("lambda_stab").get_to(cfg.lambda_stab);
-    j.at("lambda_aux").get_to(cfg.lambda_aux);
-    j.at("lr").get_to(cfg.lr);
-}
-
-inline void AurelisConfig::save(const std::string& path) const {
-    json j;
-    to_json(j["lens"], lens);
-    std::ofstream ofs(path);
-    ofs << j.dump(4);
-}
-
-inline AurelisConfig AurelisConfig::load(const std::string& path) {
-    std::ifstream ifs(path);
-    json j = json::parse(ifs);
-    AurelisConfig cfg;
-    from_json(j["lens"], cfg.lens);
-    return cfg;
-}
 
 } // namespace aurelis
