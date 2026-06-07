@@ -50,6 +50,7 @@ set(AURELIS_CORE_SOURCES
     src/core/autodiff.cpp
     src/core/spectral.cpp
     src/core/state_partition.cpp
+    src/core/logging.cpp
 )
 
 add_library(aurelis_core STATIC ${AURELIS_CORE_SOURCES})

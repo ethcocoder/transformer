@@ -34,6 +34,10 @@ class Tensor {
     Tensor clone() const;
     void fill(float value);
 
+    // Checkpointing
+    bool save(const std::string& filepath) const;
+    static Tensor load(const std::string& filepath);
+
  private:
     std::shared_ptr<float> data_;
     std::vector<int64_t> shape_;

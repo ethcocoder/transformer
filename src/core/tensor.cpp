@@ -136,4 +136,86 @@ void matmul(const Tensor& A, const Tensor& B, Tensor& C) {
     aurelis_matmul_f32(1.0f, A.data(), B.data(), 0.0f, C.data(), M, K, N);
 }
 
+bool Tensor::save(const std::string& filepath) const {
+    FILE* f = fopen(filepath.c_str(), "wb");
+    if (!f) {
+        return false;
+    }
+
+    // Write magic number for identification
+    const uint32_t magic = 0xAUREL15; // Our magic number
+    fwrite(&magic, sizeof(magic), 1, f);
+
+    // Write version
+    const uint32_t version = 1;
+    fwrite(&version, sizeof(version), 1, f);
+
+    // Write shape
+    int32_t ndim = static_cast<int32_t>(shape_.size());
+    fwrite(&ndim, sizeof(ndim), 1, f);
+    for (int64_t d : shape_) {
+        int64_t dim = d;
+        fwrite(&dim, sizeof(dim), 1, f);
+    }
+
+    // Write requires_grad
+    uint8_t req_grad = requires_grad_ ? 1 : 0;
+    fwrite(&req_grad, sizeof(req_grad), 1, f);
+
+    // Write data
+    int64_t n = numel();
+    fwrite(data_.get(), sizeof(float), static_cast<size_t>(n), f);
+
+    fclose(f);
+    return true;
+}
+
+Tensor Tensor::load(const std::string& filepath) {
+    FILE* f = fopen(filepath.c_str(), "rb");
+    if (!f) {
+        throw std::runtime_error("Could not open file for loading: " + filepath);
+    }
+
+    // Read magic number
+    uint32_t magic;
+    fread(&magic, sizeof(magic), 1, f);
+    if (magic != 0xAUREL15) {
+        fclose(f);
+        throw std::runtime_error("Invalid Aurelis tensor file: wrong magic number");
+    }
+
+    // Read version
+    uint32_t version;
+    fread(&version, sizeof(version), 1, f);
+    if (version != 1) {
+        fclose(f);
+        throw std::runtime_error("Unsupported tensor file version: " + std::to_string(version));
+    }
+
+    // Read shape
+    int32_t ndim;
+    fread(&ndim, sizeof(ndim), 1, f);
+    std::vector<int64_t> shape;
+    shape.reserve(static_cast<size_t>(ndim));
+    for (int32_t i = 0; i < ndim; ++i) {
+        int64_t dim;
+        fread(&dim, sizeof(dim), 1, f);
+        shape.push_back(dim);
+    }
+
+    // Read requires_grad
+    uint8_t req_grad;
+    fread(&req_grad, sizeof(req_grad), 1, f);
+
+    // Create tensor
+    Tensor t(shape, req_grad != 0);
+
+    // Read data
+    int64_t n = t.numel();
+    fread(t.data(), sizeof(float), static_cast<size_t>(n), f);
+
+    fclose(f);
+    return t;
+}
+
 }  // namespace aurelis

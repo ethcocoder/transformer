@@ -25,6 +25,9 @@ class Linear {
     int in_features() const { return in_; }
     int out_features() const { return out_; }
 
+    bool save(const std::string& filepath) const;
+    static Linear load(const std::string& filepath);
+
  private:
     int in_ = 0;
     int out_ = 0;
