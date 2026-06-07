@@ -1,10 +1,12 @@
 #include "aurelis/tensor.hpp"
 
 #include "aurelis/matmul.h"
+#include "aurelis/errors.hpp"
 
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
+#include <fstream>
 
 #if defined(_WIN32)
 #include <malloc.h>
@@ -137,84 +139,92 @@ void matmul(const Tensor& A, const Tensor& B, Tensor& C) {
 }
 
 bool Tensor::save(const std::string& filepath) const {
-    FILE* f = fopen(filepath.c_str(), "wb");
-    if (!f) {
-        return false;
+    std::ofstream ofs(filepath, std::ios::binary);
+    if (!ofs) {
+        throw AurelisException(
+            ErrorCode::FileNotFound,
+            "Could not open file for writing: " + filepath
+        );
     }
 
     // Write magic number for identification
     const uint32_t magic = 0xAUREL15; // Our magic number
-    fwrite(&magic, sizeof(magic), 1, f);
+    ofs.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
 
     // Write version
     const uint32_t version = 1;
-    fwrite(&version, sizeof(version), 1, f);
+    ofs.write(reinterpret_cast<const char*>(&version), sizeof(version));
 
     // Write shape
     int32_t ndim = static_cast<int32_t>(shape_.size());
-    fwrite(&ndim, sizeof(ndim), 1, f);
+    ofs.write(reinterpret_cast<const char*>(&ndim), sizeof(ndim));
     for (int64_t d : shape_) {
         int64_t dim = d;
-        fwrite(&dim, sizeof(dim), 1, f);
+        ofs.write(reinterpret_cast<const char*>(&dim), sizeof(dim));
     }
 
     // Write requires_grad
     uint8_t req_grad = requires_grad_ ? 1 : 0;
-    fwrite(&req_grad, sizeof(req_grad), 1, f);
+    ofs.write(reinterpret_cast<const char*>(&req_grad), sizeof(req_grad));
 
     // Write data
     int64_t n = numel();
-    fwrite(data_.get(), sizeof(float), static_cast<size_t>(n), f);
+    ofs.write(reinterpret_cast<const char*>(data_.get()), static_cast<size_t>(n) * sizeof(float));
 
-    fclose(f);
     return true;
 }
 
 Tensor Tensor::load(const std::string& filepath) {
-    FILE* f = fopen(filepath.c_str(), "rb");
-    if (!f) {
-        throw std::runtime_error("Could not open file for loading: " + filepath);
+    std::ifstream ifs(filepath, std::ios::binary);
+    if (!ifs) {
+        throw AurelisException(
+            ErrorCode::FileNotFound,
+            "Could not open file for loading: " + filepath
+        );
     }
 
     // Read magic number
     uint32_t magic;
-    fread(&magic, sizeof(magic), 1, f);
+    ifs.read(reinterpret_cast<char*>(&magic), sizeof(magic));
     if (magic != 0xAUREL15) {
-        fclose(f);
-        throw std::runtime_error("Invalid Aurelis tensor file: wrong magic number");
+        throw AurelisException(
+            ErrorCode::CheckpointMagicMismatch,
+            "Invalid Aurelis tensor file: wrong magic number in " + filepath
+        );
     }
 
     // Read version
     uint32_t version;
-    fread(&version, sizeof(version), 1, f);
+    ifs.read(reinterpret_cast<char*>(&version), sizeof(version));
     if (version != 1) {
-        fclose(f);
-        throw std::runtime_error("Unsupported tensor file version: " + std::to_string(version));
+        throw AurelisException(
+            ErrorCode::CheckpointVersionMismatch,
+            "Unsupported tensor file version: " + std::to_string(version) + " in " + filepath
+        );
     }
 
     // Read shape
     int32_t ndim;
-    fread(&ndim, sizeof(ndim), 1, f);
+    ifs.read(reinterpret_cast<char*>(&ndim), sizeof(ndim));
     std::vector<int64_t> shape;
     shape.reserve(static_cast<size_t>(ndim));
     for (int32_t i = 0; i < ndim; ++i) {
         int64_t dim;
-        fread(&dim, sizeof(dim), 1, f);
+        ifs.read(reinterpret_cast<char*>(&dim), sizeof(dim));
         shape.push_back(dim);
     }
 
     // Read requires_grad
     uint8_t req_grad;
-    fread(&req_grad, sizeof(req_grad), 1, f);
+    ifs.read(reinterpret_cast<char*>(&req_grad), sizeof(req_grad));
 
     // Create tensor
     Tensor t(shape, req_grad != 0);
 
     // Read data
     int64_t n = t.numel();
-    fread(t.data(), sizeof(float), static_cast<size_t>(n), f);
+    ifs.read(reinterpret_cast<char*>(t.data()), static_cast<size_t>(n) * sizeof(float));
 
-    fclose(f);
     return t;
 }
 

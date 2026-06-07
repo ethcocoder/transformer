@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <string>
+#include "aurelis/errors.hpp"
 
 namespace aurelis {
 
