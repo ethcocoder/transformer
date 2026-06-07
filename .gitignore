@@ -1,0 +1,11 @@
+build/
+out/
+.vs/
+.vscode/
+*.user
+CMakeCache.txt
+CMakeFiles/
+compile_commands.json
+__pycache__/
+*.pyc
+*.aurl
