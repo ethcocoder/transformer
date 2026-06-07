@@ -1,47 +1,60 @@
-# Basic usage example for Aurelis
+# Project Aurelis - Basic Usage Example
 import sys
 import os
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import aurelis
 
-print("=== Testing Aurelis Python Bindings ===")
+def main():
+    print("=== Project Aurelis - Basic Example ===\n")
 
-# Test tensor creation
-print("\n1. Testing Tensor Creation")
-t = aurelis.Tensor.zeros([3, 4])
-print(f"Shape: {t.shape}")
-print(f"Numel: {t.numel()}")
+    # 1. Test Tensor Operations
+    print("Step 1: Tensor operations")
+    a = aurelis.Tensor.zeros([2, 3])
+    b = aurelis.Tensor.zeros([2, 3])
+    for i in range(a.numel()):
+        a[i] = i + 1
+        b[i] = i + 4
+    print("  a =\n", a.to_numpy())
+    print("  b =\n", b.to_numpy())
 
-# Test setting values
-for i in range(t.numel()):
-    t[i] = float(i + 1)
+    c = aurelis.add(a, b)
+    print("  a + b =\n", c.to_numpy())
 
-# Test getting values
-print("\n2. Testing Tensor Values")
-for i in range(t.numel()):
-    print(f"t[{i}] = {t[i]:.1f}")
+    d = aurelis.mul(a, b)
+    print("  a * b =\n", d.to_numpy())
 
-# Test saving
-print("\n3. Testing Tensor Saving")
-t.save("test_tensor.aurelis")
-print("Saved tensor successfully")
+    # 2. Test Linear Layer
+    print("\nStep 2: Linear layer")
+    linear = aurelis.Linear(3, 2)
+    linear.init_xavier()
+    print("  Linear weight shape:", linear.weight.shape)
+    print("  Linear bias shape:", linear.bias.shape)
 
-# Test loading
-print("\n4. Testing Tensor Loading")
-t2 = aurelis.Tensor.load("test_tensor.aurelis")
-print("Loaded tensor successfully")
+    x = aurelis.Tensor.zeros([2, 3])
+    for i in range(x.numel()):
+        x[i] = i + 1
+    y = linear.forward(x)
+    print("  x =\n", x.to_numpy())
+    print("  y = linear(x) =\n", y.to_numpy())
 
-# Test config
-print("\n5. Testing Config")
-config = aurelis.AurelisConfig()
-config.lens.D = 64
-config.lens.vocab_size = 16
-config.save("test_config.json")
-print("Config saved")
+    # 3. Test Config
+    print("\nStep 3: Configuration system")
+    config = aurelis.AurelisConfig()
+    config.lens.vocab_size = 100
+    config.lens.D = 128
+    config.save("config_example.json")
+    loaded_config = aurelis.AurelisConfig.load("config_example.json")
+    print("  Loaded config D =", loaded_config.lens.D)
+    print("  Loaded config vocab_size =", loaded_config.lens.vocab_size)
 
-config2 = aurelis.AurelisConfig.load("test_config.json")
-print(f"Loaded config: D={config2.lens.D}, vocab_size={config2.lens.vocab_size}")
+    # 4. Test Checkpointing
+    print("\nStep 4: Checkpointing")
+    linear.save("linear_example.aur")
+    loaded_linear = aurelis.Linear.load("linear_example.aur")
+    print("  Checkpointed linear weight shape:", loaded_linear.weight.shape)
 
-print("\n=== All tests passed! ===")
+    print("\n=== All tests passed! ===")
+
+if __name__ == "__main__":
+    main()
