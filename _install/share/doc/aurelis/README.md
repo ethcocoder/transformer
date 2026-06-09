@@ -13,7 +13,6 @@ Next-generation O(n) generative substrate — custom C/C++/Python stack (no ML f
 - [Phase 4 plan](docs/phase-4-implementation-plan.md)
 - [Phase 5 plan](docs/phase-5-implementation-plan.md)
 - [Productionization plan](docs/productionization-plan.md)
-- [Release checklist](docs/release-checklist.md)
 
 ## Build (Phases 0-5)
 

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(aurelis VERSION 0.1.0 LANGUAGES C CXX)
 
+include(GNUInstallDirs)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -61,7 +63,7 @@ target_include_directories(aurelis_core PUBLIC
 target_link_libraries(aurelis_core PUBLIC aurelis_c)
 
 # Link filesystem library for older GCC versions
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT MINGW)
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
         target_link_libraries(aurelis_core PUBLIC stdc++fs)
     endif()
@@ -190,6 +192,24 @@ endif()
 add_executable(train_lens src/train/train_lens.cpp)
 target_link_libraries(train_lens PRIVATE aurelis_lens)
 
+# --- Install rules for packaging / release ---
+install(TARGETS
+    aurelis_c
+    aurelis_core
+    aurelis_lens
+    aurelis_aureum
+    aurelis_arc
+    aurelis_tesserae
+    aurelis_convergence
+    train_lens
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES README.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
+
 # --- Tests ---
 if(AURELIS_BUILD_TESTS)
     enable_testing()
@@ -220,9 +240,15 @@ if(AURELIS_BUILD_TESTS)
 
     add_executable(test_ietcf_only tests/cpp/test_ietcf_only.cpp)
     target_link_libraries(test_ietcf_only PRIVATE aurelis_lens)
+    add_test(NAME ietcf_only COMMAND test_ietcf_only)
 
     add_executable(test_nan_debug tests/cpp/test_nan_debug.cpp)
     target_link_libraries(test_nan_debug PRIVATE aurelis_lens)
+    add_test(NAME nan_debug COMMAND test_nan_debug)
+
+    add_executable(test_production test_production.cpp)
+    target_link_libraries(test_production PRIVATE aurelis_core)
+    add_test(NAME production_smoke COMMAND test_production)
 
     add_executable(test_aureum tests/cpp/test_aureum.cpp)
     target_link_libraries(test_aureum PRIVATE aurelis_aureum)

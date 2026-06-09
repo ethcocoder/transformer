@@ -62,7 +62,7 @@ bool Linear::save(const std::string& filepath) const {
     FILE* f = fopen(filepath.c_str(), "wb");
     if (!f) return false;
 
-    const uint32_t magic = 0xAUREL16; // Linear layer magic
+    const uint32_t magic = 0x45525541; // Linear layer magic ('AURE')
     fwrite(&magic, sizeof(magic), 1, f);
 
     const uint32_t version = 1;
@@ -87,7 +87,7 @@ Linear Linear::load(const std::string& filepath) {
 
     uint32_t magic;
     fread(&magic, sizeof(magic), 1, f);
-    if (magic != 0xAUREL16) {
+    if (magic != 0x45525541) {
         fclose(f);
         throw std::runtime_error("Invalid Aurelis Linear file");
     }

@@ -1,26 +1,13 @@
 #pragma once
 
-#include <cctype>
-#include <fstream>
-#include <iterator>
-#include <map>
-#include <sstream>
-#include <stdexcept>
 #include <string>
-#include <type_traits>
+#include <map>
 #include <vector>
+#include <sstream>
+#include <fstream>
+#include <stdexcept>
 
 namespace nlohmann {
-
-class parse_error : public std::runtime_error {
-public:
-    using std::runtime_error::runtime_error;
-};
-
-class type_error : public std::runtime_error {
-public:
-    using std::runtime_error::runtime_error;
-};
 
 class json {
 public:
@@ -121,9 +108,8 @@ private:
     void dump_impl(std::ostringstream& oss, int depth, int indent) const {
         bool pretty = indent >= 0;
         std::string ind;
-        bool first = true;
         if (pretty) ind = std::string(depth * indent, ' ');
-
+        
         switch (type_) {
             case value_t::null:
                 oss << "null";
@@ -155,7 +141,7 @@ private:
             case value_t::object:
                 oss << "{";
                 if (pretty) oss << "\n";
-                first = true;
+                bool first = true;
                 for (const auto& kv : object_val_) {
                     if (!first) oss << ",";
                     if (pretty) oss << "\n" << std::string((depth + 1) * indent, ' ');
@@ -184,7 +170,7 @@ private:
         }
     }
 
-    static json parse_impl(const char*& p, const char* end) {
+    static json parse(const char*& p, const char* end) {
         while (p < end && std::isspace(*p)) p++;
         if (p >= end) throw std::runtime_error("unexpected end");
         
@@ -206,11 +192,11 @@ private:
                     while (p < end && std::isspace(*p)) p++;
                 }
                 first = false;
-                json key = parse_impl(p, end);
+                json key = parse(p, end);
                 while (p < end && std::isspace(*p)) p++;
                 if (*p != ':') throw std::runtime_error("expected colon");
                 p++;
-                json val = parse_impl(p, end);
+                json val = parse(p, end);
                 obj.object_val_[key.get<std::string>()] = val;
             }
             return obj;
@@ -231,7 +217,7 @@ private:
                     p++;
                 }
                 first = false;
-                json item = parse_impl(p, end);
+                json item = parse(p, end);
                 arr.array_val_.push_back(item);
             }
             return arr;
@@ -298,19 +284,8 @@ private:
 
     static json parse(const char* start, const char* end) {
         const char* p = start;
-        return parse_impl(p, end);
+        return parse(p, end);
     }
 };
-
-inline std::istream& operator>>(std::istream& is, json& j) {
-    std::string s((std::istreambuf_iterator<char>(is)), std::istreambuf_iterator<char>());
-    j = json::parse(s);
-    return is;
-}
-
-inline std::ostream& operator<<(std::ostream& os, const json& j) {
-    os << j.dump();
-    return os;
-}
 
 } // namespace nlohmann

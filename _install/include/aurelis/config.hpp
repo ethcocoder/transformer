@@ -11,12 +11,12 @@ namespace aurelis {
 using json = nlohmann::json;
 
 struct AurelisConfig {
-    aurelis::lens::LensConfig lens;
+    LensConfig lens;
 
-    bool save(const std::string& path) const {
+    void save(const std::string& path) const {
         std::ofstream ofs(path);
         if (!ofs) {
-            return false;
+            throw AurelisException(ErrorCode::FileNotFound, "Could not open config file for writing: " + path);
         }
         
         json j;
@@ -32,7 +32,6 @@ struct AurelisConfig {
         j["lens"]["lr"] = lens.lr;
         
         ofs << j.dump(4) << std::endl;
-        return ofs.good();
     }
 
     static AurelisConfig load(const std::string& path) {
@@ -62,9 +61,9 @@ struct AurelisConfig {
             }
             
             return cfg;
-        } catch (const nlohmann::parse_error& e) {
+        } catch (const json::parse_error& e) {
             throw AurelisException(ErrorCode::InvalidJson, "Failed to parse config JSON: " + std::string(e.what()));
-        } catch (const nlohmann::type_error& e) {
+        } catch (const json::type_error& e) {
             throw AurelisException(ErrorCode::InvalidConfig, "Invalid config format: " + std::string(e.what()));
         }
     }
