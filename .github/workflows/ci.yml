@@ -17,11 +17,10 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Configure CMake
-        run: cmake -S . -B build -DAURELIS_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Validate release workflow
+        shell: pwsh
+        run: ./scripts/verify_release.ps1 -Generator Ninja -Configuration Release
 
-      - name: Build
-        run: cmake --build build --parallel
-
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
+      - name: Benchmark release path
+        shell: pwsh
+        run: ./tools/benchmark_release.ps1 -Generator Ninja -Configuration Release

@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(aurelis VERSION 0.1.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
+include(CPack)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -210,6 +211,17 @@ install(TARGETS
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(FILES README.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
 
+set(CPACK_PACKAGE_NAME "aurelis")
+set(CPACK_PACKAGE_VENDOR "Aurelis")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Aurelis release package")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_GENERATOR "ZIP;TGZ")
+set(CPACK_SOURCE_GENERATOR "ZIP;TGZ")
+set(CPACK_PACKAGE_FILE_NAME "aurelis-${PROJECT_VERSION}-release")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
 # --- Tests ---
 if(AURELIS_BUILD_TESTS)
     enable_testing()
@@ -249,6 +261,10 @@ if(AURELIS_BUILD_TESTS)
     add_executable(test_production test_production.cpp)
     target_link_libraries(test_production PRIVATE aurelis_core)
     add_test(NAME production_smoke COMMAND test_production)
+
+    add_executable(test_production_hardening tests/cpp/test_production_hardening.cpp)
+    target_link_libraries(test_production_hardening PRIVATE aurelis_core)
+    add_test(NAME production_hardening COMMAND test_production_hardening)
 
     add_executable(test_aureum tests/cpp/test_aureum.cpp)
     target_link_libraries(test_aureum PRIVATE aurelis_aureum)

@@ -33,6 +33,19 @@ class LensLayer {
     void forward(const float* x_stream, const float* gamma, int n,
                  float* x_out, LayerCache& cache) const;
 
+    void backward(const float* x_stream, const float* gamma, const float* grad_c,
+                  int n, const LayerCache& cache,
+                  float* grad_x_stream, float* grad_gamma,
+                  Tensor& grad_gate_W, Tensor& grad_gate_b,
+                  Tensor& grad_ctrl_W, Tensor& grad_ctrl_b,
+                  Tensor& grad_Wa, Tensor& grad_ba, Tensor& grad_Wb,
+                  Tensor& grad_bb, Tensor& grad_Winj, Tensor& grad_binj,
+                  Tensor& grad_M, Tensor& grad_c_bias,
+                  Tensor& grad_mu, Tensor& grad_L,
+                  Tensor& grad_We, Tensor& grad_be, Tensor& grad_Wr,
+                  Tensor& grad_br, Tensor& grad_Wm,
+                  Tensor& grad_bm) const;
+
     FWSE& fwse() { return fwse_; }
     CSC& csc() { return csc_; }
     MGP& mgp() { return mgp_; }

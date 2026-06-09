@@ -23,6 +23,27 @@ cmake --build build --config Release
 ctest --test-dir build -C Release
 ```
 
+For a repeatable release validation pass, run:
+
+```powershell
+powershell -File .\scripts\verify_release.ps1
+```
+
+To generate a release package artifact from the validated build tree, run:
+
+```powershell
+cmake --build build --config Release --parallel
+cpack --config build/CPackConfig.cmake -G ZIP
+```
+
+For a quick release benchmark and timing baseline, run:
+
+```powershell
+powershell -File .\tools\benchmark_release.ps1
+```
+
+The release scripts resolve CMake/CTest from PATH first, then fall back to standard install locations. Pass `-Generator "Ninja"` (or your CI generator) and `-Configuration Release` when you need to override the default toolchain in CI.
+
 Optional BLAS (faster matmul): install OpenBLAS and ensure CMake `find_package(BLAS)` succeeds.
 
 ## Layout

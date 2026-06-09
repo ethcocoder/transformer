@@ -29,6 +29,10 @@ class SPI {
                        Tensor& grad_br, Tensor& grad_Wm,
                        Tensor& grad_bm) const;
 
+    Linear& W_e() { return W_e_; }
+    Linear& W_r() { return W_r_; }
+    Linear& W_m() { return W_m_; }
+
     StatePartition partition() const { return part_; }
 
  private:

@@ -6,7 +6,8 @@ The project is now in a strong engineering baseline:
 
 - CMake configuration succeeds in this environment.
 - The project builds successfully.
-- The current test suite passes: 9/9 tests passed with `ctest`.
+- The current release validation path passes: 13/13 tests passed with `ctest` and the install tree is generated.
+- The release benchmark path is now wired into the CI workflow and uses the same resolved toolchain path as release validation.
 
 This means the codebase is already buildable and functionally validated. It does **not** yet mean the project is fully production-ready.
 
@@ -47,7 +48,7 @@ Required work:
 
 - Add an install target in CMake
 - Produce release builds for Windows/Linux/macOS
-- Add versioned package artifacts
+- Add versioned package artifacts via CPack
 - Provide a simple install procedure for users and CI
 - Ensure the public headers and runtime assets are packaged correctly
 
