@@ -148,7 +148,7 @@ bool Tensor::save(const std::string& filepath) const {
     }
 
     // Write magic number for identification
-    const uint32_t magic = 0xAUREL15; // Our magic number
+    const uint32_t magic = 0xA55656; // Our magic number
     ofs.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
 
     // Write version
@@ -186,7 +186,7 @@ Tensor Tensor::load(const std::string& filepath) {
     // Read magic number
     uint32_t magic;
     ifs.read(reinterpret_cast<char*>(&magic), sizeof(magic));
-    if (magic != 0xAUREL15) {
+    if (magic != 0xA55656) {
         throw AurelisException(
             ErrorCode::CheckpointMagicMismatch,
             "Invalid Aurelis tensor file: wrong magic number in " + filepath

@@ -51,6 +51,7 @@ set(AURELIS_CORE_SOURCES
     src/core/spectral.cpp
     src/core/state_partition.cpp
     src/core/logging.cpp
+    src/core/profiler.cpp
 )
 
 add_library(aurelis_core STATIC ${AURELIS_CORE_SOURCES})
@@ -58,6 +59,13 @@ target_include_directories(aurelis_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(aurelis_core PUBLIC aurelis_c)
+
+# Link filesystem library for older GCC versions
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
+        target_link_libraries(aurelis_core PUBLIC stdc++fs)
+    endif()
+endif()
 
 if(MSVC)
     target_compile_options(aurelis_core PRIVATE /W4)
