@@ -1,21 +1,20 @@
+#include <cstddef>
 #include "aurelis/lens/mssp.hpp"
 
-namespace aurelis::lens {
+namespace aurelis {
+namespace lens {
 
-MsspLayout MsspLayout::build(int D, int num_scales) {
+MsspLayout MsspLayout::build(int D, int S) {
     MsspLayout layout;
-    layout.D = D;
-    layout.num_scales = num_scales;
-    layout.scale_index.resize(static_cast<size_t>(D));
-    const int per = D / num_scales;
+    layout.scale_index.resize(static_cast<std::size_t>(D));
+
     for (int i = 0; i < D; ++i) {
-        int s = i / per;
-        if (s >= num_scales) {
-            s = num_scales - 1;
-        }
-        layout.scale_index[static_cast<size_t>(i)] = s;
+        int s = (i * S) / D;
+        layout.scale_index[static_cast<std::size_t>(i)] = s;
     }
+
     return layout;
 }
 
-}  // namespace aurelis::lens
+} // namespace lens
+} // namespace aurelis
