@@ -42,6 +42,7 @@ class LensModel {
     std::vector<float> x_stream_;
     std::vector<float> final_c_;
     std::vector<LayerCache> caches_;
+    std::vector<std::vector<float>> layer_inputs_;
 
     void sgd_step(Tensor& param, const Tensor& grad, float lr);
 };

@@ -1,0 +1,37 @@
+========================================================
+  Aurelis Production Readiness Test Suite
+========================================================
+
+[TEST] Activations
+  FAIL  /mnt/c/Users/NAR/documents/nex/trusted/transformer/tests/cpp/test_production_suite.cpp:498: SiLU saturate right
+[TEST] Activations done
+[TEST] Spectral Clamping
+[TEST] Spectral Clamping done
+[TEST] Blelloch Scan
+[TEST] Blelloch Scan done
+[TEST] Orthogonal Matrix
+[TEST] Orthogonal Matrix done
+[TEST] Linear Layer
+[TEST] Linear Layer done
+[TEST] FWSE Stability
+[TEST] FWSE Stability done
+[TEST] MGP Stability
+  FAIL  /mnt/c/Users/NAR/documents/nex/trusted/transformer/tests/cpp/test_production_suite.cpp:624: MGP mean preservation
+[TEST] MGP Stability done
+[TEST] Loss Functions
+  FAIL  /mnt/c/Users/NAR/documents/nex/trusted/transformer/tests/cpp/test_production_suite.cpp:643: Perfect pred loss near 0
+[TEST] Loss Functions done
+[TEST] BPE Tokenizer
+[TEST] BPE done: 101 passed
+[TEST] NaN Stability
+[TEST] NaN Stability done
+[TEST] Long-Sequence Stability
+[TEST] Long-Sequence Stability done
+[TEST] Gradient Check (Finite Differences)
+[TEST] Gradient Check done
+[TEST] End-to-End Training
+[TEST] End-to-End Training done
+
+========================================================
+  Results: 139 passed, 3 failed out of 142
+========================================================

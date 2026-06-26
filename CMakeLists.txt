@@ -1,10 +1,14 @@
 cmake_minimum_required(VERSION 3.20)
 project(aurelis VERSION 0.1.0 LANGUAGES C CXX)
 
+include(GNUInstallDirs)
+include(CPack)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(AURELIS_USE_BLAS "Link OpenBLAS/MKL for sgemm" ON)
 option(AURELIS_BUILD_PYTHON "Build pybind11 module" OFF)
@@ -50,6 +54,8 @@ set(AURELIS_CORE_SOURCES
     src/core/autodiff.cpp
     src/core/spectral.cpp
     src/core/state_partition.cpp
+    src/core/logging.cpp
+    src/core/profiler.cpp
 )
 
 add_library(aurelis_core STATIC ${AURELIS_CORE_SOURCES})
@@ -57,6 +63,13 @@ target_include_directories(aurelis_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(aurelis_core PUBLIC aurelis_c)
+
+# Link filesystem library for older GCC versions
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT MINGW)
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
+        target_link_libraries(aurelis_core PUBLIC stdc++fs)
+    endif()
+endif()
 
 if(MSVC)
     target_compile_options(aurelis_core PRIVATE /W4)
@@ -78,6 +91,7 @@ set(AURELIS_LENS_SOURCES
     src/lens/lens_layer.cpp
     src/lens/loss.cpp
     src/lens/lens_model.cpp
+    src/lens/bpe.cpp
 )
 
 add_library(aurelis_lens STATIC ${AURELIS_LENS_SOURCES})
@@ -181,6 +195,51 @@ endif()
 add_executable(train_lens src/train/train_lens.cpp)
 target_link_libraries(train_lens PRIVATE aurelis_lens)
 
+# --- C ABI shared library for Python / FFI ---
+add_library(aurelis_capi SHARED src/c/trainer_abi.cpp)
+target_include_directories(aurelis_capi PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(aurelis_capi PRIVATE aurelis_lens)
+if(MSVC)
+    target_compile_options(aurelis_capi PRIVATE /W4)
+else()
+    target_compile_options(aurelis_capi PRIVATE -Wall -Wextra -O2 -fvisibility=hidden)
+    set_target_properties(aurelis_capi PROPERTIES
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+    )
+endif()
+
+# --- Install rules for packaging / release ---
+install(TARGETS
+    aurelis_c
+    aurelis_core
+    aurelis_lens
+    aurelis_aureum
+    aurelis_arc
+    aurelis_tesserae
+    aurelis_convergence
+    train_lens
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES README.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
+
+set(CPACK_PACKAGE_NAME "aurelis")
+set(CPACK_PACKAGE_VENDOR "Aurelis")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Aurelis release package")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_GENERATOR "ZIP;TGZ")
+set(CPACK_SOURCE_GENERATOR "ZIP;TGZ")
+set(CPACK_PACKAGE_FILE_NAME "aurelis-${PROJECT_VERSION}-release")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
 # --- Tests ---
 if(AURELIS_BUILD_TESTS)
     enable_testing()
@@ -211,9 +270,15 @@ if(AURELIS_BUILD_TESTS)
 
     add_executable(test_ietcf_only tests/cpp/test_ietcf_only.cpp)
     target_link_libraries(test_ietcf_only PRIVATE aurelis_lens)
+    add_test(NAME ietcf_only COMMAND test_ietcf_only)
 
     add_executable(test_nan_debug tests/cpp/test_nan_debug.cpp)
     target_link_libraries(test_nan_debug PRIVATE aurelis_lens)
+    add_test(NAME nan_debug COMMAND test_nan_debug)
+
+    add_executable(test_production_suite tests/cpp/test_production_suite.cpp)
+    target_link_libraries(test_production_suite PRIVATE aurelis_lens)
+    add_test(NAME production_suite COMMAND test_production_suite)
 
     add_executable(test_aureum tests/cpp/test_aureum.cpp)
     target_link_libraries(test_aureum PRIVATE aurelis_aureum)

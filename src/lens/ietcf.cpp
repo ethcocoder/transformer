@@ -11,85 +11,49 @@ namespace aurelis::lens {
 
 namespace {
 
-/* R = (I - S)(I + S)^{-1}, S = A - A^T skew-symmetric. Stable vs Gram-Schmidt. */
-void make_orthogonal_cayley(float* R, int d, std::mt19937& rng) {
+/* Generate orthogonal matrix via QR decomposition of a random normal matrix.
+ * Gram-Schmidt is numerically stable for moderate dimensions (d <= 512) and
+ * avoids the singularity issues of the Cayley Gauss-Jordan approach. */
+void make_orthogonal_qr(float* R, int d, std::mt19937& rng) {
     std::normal_distribution<float> dist(0.0f, 0.02f);
-    std::vector<float> S(static_cast<size_t>(d * d), 0.0f);
-    for (int i = 0; i < d; ++i) {
-        for (int j = i + 1; j < d; ++j) {
-            const float v = dist(rng);
-            S[static_cast<size_t>(i * d + j)] = v;
-            S[static_cast<size_t>(j * d + i)] = -v;
-        }
-    }
-
-    std::vector<float> M(static_cast<size_t>(d * d));
-    std::vector<float> B(static_cast<size_t>(d * d));
+    std::vector<float> A(static_cast<size_t>(d * d));
     for (int i = 0; i < d; ++i) {
         for (int j = 0; j < d; ++j) {
-            const float s = S[static_cast<size_t>(i * d + j)];
-            M[static_cast<size_t>(i * d + j)] = (i == j ? 1.0f : 0.0f) + s;
-            B[static_cast<size_t>(i * d + j)] = (i == j ? 1.0f : 0.0f) - s;
+            A[static_cast<size_t>(i * d + j)] = dist(rng);
         }
     }
 
-    /* Solve M * R = B for R (Gauss-Jordan, d <= 512). */
-    std::vector<float> Aaug(static_cast<size_t>(d * 2 * d));
-    for (int i = 0; i < d; ++i) {
-        for (int j = 0; j < d; ++j) {
-            Aaug[static_cast<size_t>(i * 2 * d + j)] =
-                M[static_cast<size_t>(i * d + j)];
-            Aaug[static_cast<size_t>(i * 2 * d + d + j)] =
-                B[static_cast<size_t>(i * d + j)];
+    /* Modified Gram-Schmidt: A = QR, extract Q into R */
+    std::vector<float> Q(static_cast<size_t>(d * d), 0.0f);
+    for (int k = 0; k < d; ++k) {
+        float norm_sq = 0.0f;
+        for (int i = 0; i < d; ++i) {
+            norm_sq += A[static_cast<size_t>(i * d + k)] *
+                       A[static_cast<size_t>(i * d + k)];
         }
-    }
-
-    for (int col = 0; col < d; ++col) {
-        int pivot = col;
-        float maxv = std::fabs(Aaug[static_cast<size_t>(col * 2 * d + col)]);
-        for (int r = col + 1; r < d; ++r) {
-            const float v =
-                std::fabs(Aaug[static_cast<size_t>(r * 2 * d + col)]);
-            if (v > maxv) {
-                maxv = v;
-                pivot = r;
-            }
+        float norm = std::sqrt(norm_sq + 1e-12f);
+        float inv_norm = 1.0f / norm;
+        for (int i = 0; i < d; ++i) {
+            Q[static_cast<size_t>(i * d + k)] =
+                A[static_cast<size_t>(i * d + k)] * inv_norm;
         }
-        if (maxv < 1e-12f) {
+        for (int j = k + 1; j < d; ++j) {
+            float dot = 0.0f;
             for (int i = 0; i < d; ++i) {
-                for (int j = 0; j < d; ++j) {
-                    R[i * d + j] = (i == j) ? 1.0f : 0.0f;
-                }
+                dot += Q[static_cast<size_t>(i * d + k)] *
+                       A[static_cast<size_t>(i * d + j)];
             }
-            return;
-        }
-        if (pivot != col) {
-            for (int j = 0; j < 2 * d; ++j) {
-                std::swap(Aaug[static_cast<size_t>(col * 2 * d + j)],
-                          Aaug[static_cast<size_t>(pivot * 2 * d + j)]);
-            }
-        }
-        const float div =
-            Aaug[static_cast<size_t>(col * 2 * d + col)];
-        for (int j = 0; j < 2 * d; ++j) {
-            Aaug[static_cast<size_t>(col * 2 * d + j)] /= div;
-        }
-        for (int r = 0; r < d; ++r) {
-            if (r == col) {
-                continue;
-            }
-            const float factor =
-                Aaug[static_cast<size_t>(r * 2 * d + col)];
-            for (int j = 0; j < 2 * d; ++j) {
-                Aaug[static_cast<size_t>(r * 2 * d + j)] -=
-                    factor * Aaug[static_cast<size_t>(col * 2 * d + j)];
+            for (int i = 0; i < d; ++i) {
+                A[static_cast<size_t>(i * d + j)] -=
+                    dot * Q[static_cast<size_t>(i * d + k)];
             }
         }
     }
 
     for (int i = 0; i < d; ++i) {
         for (int j = 0; j < d; ++j) {
-            R[i * d + j] = Aaug[static_cast<size_t>(i * 2 * d + d + j)];
+            R[static_cast<size_t>(i * d + j)] =
+                Q[static_cast<size_t>(i * d + j)];
         }
     }
 }
@@ -109,7 +73,7 @@ void IETCF::init() {
     for (int64_t i = 0; i < E_.numel(); ++i) {
         E_.at(i) = dist(rng);
     }
-    make_orthogonal_cayley(R_.data(), cfg_.d_tau, rng);
+    make_orthogonal_qr(R_.data(), cfg_.d_tau, rng);
     W_gamma_.init_xavier();
     for (int i = 0; i < cfg_.d_tau; ++i) {
         tau_[static_cast<size_t>(i)] = (i == 0) ? 1.0f : 0.0f;

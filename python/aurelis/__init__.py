@@ -1,3 +1,1 @@
-from ._core import *
-
-__version__ = "0.1.0"
+from .trainer import Trainer

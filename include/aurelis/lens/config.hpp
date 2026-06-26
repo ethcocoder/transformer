@@ -12,7 +12,7 @@ struct LensConfig {
     int num_scales = 4;
     float eps_scales[4] = {0.9f, 0.5f, 0.1f, 0.01f};
     float lambda_stab = 0.01f;
-    float lambda_aux = 0.001f;
+    float lambda_aux = 0.01f;
     float lr = 1e-2f;
 
     int Dc() const { return d_model; }

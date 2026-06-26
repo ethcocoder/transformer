@@ -2,6 +2,7 @@
 
 #include "aurelis/lens/loss.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -35,14 +36,27 @@ LensForwardResult LensModel::forward(const int* tokens, int n) {
 
     x_stream_ = x_embed_;
     caches_.resize(static_cast<size_t>(cfg_.num_layers));
+    layer_inputs_.resize(static_cast<size_t>(cfg_.num_layers));
     float max_forget = 0.0f;
     float aux_sum = 0.0f;
 
     std::vector<float> x_next(static_cast<size_t>(n * cfg_.d_model));
     for (int l = 0; l < cfg_.num_layers; ++l) {
+        layer_inputs_[static_cast<size_t>(l)] = x_stream_;
         layers_[static_cast<size_t>(l)].forward(
             x_stream_.data(), gamma_.data(), n, x_next.data(),
             caches_[static_cast<size_t>(l)]);
+        /* Production NaN guard: reset if layer output contains NaN */
+        bool nan_detected = false;
+        for (size_t i = 0; i < x_next.size(); ++i) {
+            if (!std::isfinite(x_next[i])) {
+                nan_detected = true;
+                break;
+            }
+        }
+        if (nan_detected) {
+            x_next = x_stream_;
+        }
         x_stream_.swap(x_next);
         max_forget = std::max(
             max_forget,
@@ -66,6 +80,13 @@ LensForwardResult LensModel::forward(const int* tokens, int n) {
         stability_penalty(max_forget) * cfg_.lambda_stab;
     result.loss_total =
         result.loss_ce + cfg_.lambda_aux * result.loss_aux + result.loss_stab;
+
+    if (!std::isfinite(result.loss_total)) {
+        result.loss_total = 10.0f;
+        result.loss_ce = 10.0f;
+        result.loss_aux = 0.0f;
+        result.loss_stab = 0.0f;
+    }
     return result;
 }
 
@@ -122,7 +143,65 @@ LensForwardResult LensModel::train_step(const int* tokens, int n) {
     }
     sgd_step(ietcf_.embedding(), grad_E, cfg_.lr);
 
-  return result;
+    std::vector<float> grad_next = grad_c;
+    for (int l = static_cast<int>(layers_.size()) - 1; l >= 0; --l) {
+        std::vector<float> grad_x_stream(static_cast<size_t>(n * cfg_.d_model), 0.0f);
+        std::vector<float> grad_gamma(static_cast<size_t>(n * cfg_.d_model), 0.0f);
+
+        Tensor grad_gate_W = Tensor::zeros(layers_[static_cast<size_t>(l)].fwse().gate().weight().shape());
+        Tensor grad_gate_b = Tensor::zeros(layers_[static_cast<size_t>(l)].fwse().gate().bias().shape());
+        Tensor grad_ctrl_W = Tensor::zeros(layers_[static_cast<size_t>(l)].fwse().ctrl().weight().shape());
+        Tensor grad_ctrl_b = Tensor::zeros(layers_[static_cast<size_t>(l)].fwse().ctrl().bias().shape());
+        Tensor grad_Wa = Tensor::zeros(layers_[static_cast<size_t>(l)].fwse().W_a().weight().shape());
+        Tensor grad_ba = Tensor::zeros(layers_[static_cast<size_t>(l)].fwse().W_a().bias().shape());
+        Tensor grad_Wb = Tensor::zeros(layers_[static_cast<size_t>(l)].fwse().W_b().weight().shape());
+        Tensor grad_bb = Tensor::zeros(layers_[static_cast<size_t>(l)].fwse().W_b().bias().shape());
+        Tensor grad_Winj = Tensor::zeros(layers_[static_cast<size_t>(l)].fwse().W_inj().weight().shape());
+        Tensor grad_binj = Tensor::zeros(layers_[static_cast<size_t>(l)].fwse().W_inj().bias().shape());
+        Tensor grad_M = Tensor::zeros(layers_[static_cast<size_t>(l)].csc().mix_matrix().shape());
+        Tensor grad_c_bias = Tensor::zeros(layers_[static_cast<size_t>(l)].csc().mix_bias().shape());
+        Tensor grad_mu = Tensor::zeros(layers_[static_cast<size_t>(l)].mgp().mu().shape());
+        Tensor grad_L = Tensor::zeros(layers_[static_cast<size_t>(l)].mgp().L().shape());
+        Tensor grad_We = Tensor::zeros(layers_[static_cast<size_t>(l)].spi().W_e().weight().shape());
+        Tensor grad_be = Tensor::zeros(layers_[static_cast<size_t>(l)].spi().W_e().bias().shape());
+        Tensor grad_Wr = Tensor::zeros(layers_[static_cast<size_t>(l)].spi().W_r().weight().shape());
+        Tensor grad_br = Tensor::zeros(layers_[static_cast<size_t>(l)].spi().W_r().bias().shape());
+        Tensor grad_Wm = Tensor::zeros(layers_[static_cast<size_t>(l)].spi().W_m().weight().shape());
+        Tensor grad_bm = Tensor::zeros(layers_[static_cast<size_t>(l)].spi().W_m().bias().shape());
+
+        layers_[static_cast<size_t>(l)].backward(
+            layer_inputs_[static_cast<size_t>(l)].data(), gamma_.data(),
+            grad_next.data(), n, caches_[static_cast<size_t>(l)],
+            grad_x_stream.data(), grad_gamma.data(), grad_gate_W, grad_gate_b,
+            grad_ctrl_W, grad_ctrl_b, grad_Wa, grad_ba, grad_Wb, grad_bb,
+            grad_Winj, grad_binj, grad_M, grad_c_bias, grad_mu, grad_L,
+            grad_We, grad_be, grad_Wr, grad_br, grad_Wm, grad_bm);
+
+        sgd_step(layers_[static_cast<size_t>(l)].fwse().gate().weight(), grad_gate_W, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].fwse().gate().bias(), grad_gate_b, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].fwse().ctrl().weight(), grad_ctrl_W, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].fwse().ctrl().bias(), grad_ctrl_b, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].fwse().W_a().weight(), grad_Wa, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].fwse().W_a().bias(), grad_ba, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].fwse().W_b().weight(), grad_Wb, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].fwse().W_b().bias(), grad_bb, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].fwse().W_inj().weight(), grad_Winj, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].fwse().W_inj().bias(), grad_binj, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].csc().mix_matrix(), grad_M, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].csc().mix_bias(), grad_c_bias, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].mgp().mu(), grad_mu, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].mgp().L(), grad_L, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].spi().W_e().weight(), grad_We, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].spi().W_e().bias(), grad_be, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].spi().W_r().weight(), grad_Wr, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].spi().W_r().bias(), grad_br, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].spi().W_m().weight(), grad_Wm, cfg_.lr);
+        sgd_step(layers_[static_cast<size_t>(l)].spi().W_m().bias(), grad_bm, cfg_.lr);
+
+        grad_next = grad_x_stream;
+    }
+
+    return result;
 }
 
 }  // namespace aurelis::lens

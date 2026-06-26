@@ -58,4 +58,57 @@ void Linear::backward(const Tensor& grad_out, const Tensor& x, Tensor& grad_W,
                     grad_b.data(), grad_x.data(), out_, in_);
 }
 
+bool Linear::save(const std::string& filepath) const {
+    FILE* f = fopen(filepath.c_str(), "wb");
+    if (!f) return false;
+
+    const uint32_t magic = 0x45525541; // Linear layer magic ('AURE')
+    fwrite(&magic, sizeof(magic), 1, f);
+
+    const uint32_t version = 1;
+    fwrite(&version, sizeof(version), 1, f);
+
+    fwrite(&in_, sizeof(in_), 1, f);
+    fwrite(&out_, sizeof(out_), 1, f);
+
+    fclose(f);
+
+    if (!W_.save(filepath + ".W")) return false;
+    if (!b_.save(filepath + ".b")) return false;
+
+    return true;
+}
+
+Linear Linear::load(const std::string& filepath) {
+    FILE* f = fopen(filepath.c_str(), "rb");
+    if (!f) {
+        throw std::runtime_error("Could not open Linear file for loading: " + filepath);
+    }
+
+    uint32_t magic;
+    fread(&magic, sizeof(magic), 1, f);
+    if (magic != 0x45525541) {
+        fclose(f);
+        throw std::runtime_error("Invalid Aurelis Linear file");
+    }
+
+    uint32_t version;
+    fread(&version, sizeof(version), 1, f);
+    if (version != 1) {
+        fclose(f);
+        throw std::runtime_error("Unsupported Linear version");
+    }
+
+    int in, out;
+    fread(&in, sizeof(in), 1, f);
+    fread(&out, sizeof(out), 1, f);
+    fclose(f);
+
+    Linear linear(in, out);
+    linear.W_ = Tensor::load(filepath + ".W");
+    linear.b_ = Tensor::load(filepath + ".b");
+
+    return linear;
+}
+
 }  // namespace aurelis::lens

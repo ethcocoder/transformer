@@ -17,6 +17,9 @@ class MGP {
     void backward_step(const float* h_in, const float* grad_out,
                        float* grad_in, Tensor& grad_mu, Tensor& grad_L) const;
 
+    Tensor& mu() { return mu_; }
+    Tensor& L() { return L_; }
+
  private:
     LensConfig cfg_;
     Tensor mu_;

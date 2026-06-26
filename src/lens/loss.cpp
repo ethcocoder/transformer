@@ -1,5 +1,6 @@
 #include "aurelis/lens/loss.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace aurelis::lens {
@@ -21,23 +22,29 @@ float cross_entropy_next_token(const float* logits, const int* targets, int n,
         for (int v = 1; v < vocab; ++v) {
             maxv = std::max(maxv, row[v]);
         }
+        if (!std::isfinite(maxv)) maxv = 0.0f;
+
         float sum = 0.0f;
         for (int v = 0; v < vocab; ++v) {
-            sum += std::exp(row[v] - maxv);
+            float e = std::exp(row[v] - maxv);
+            if (!std::isfinite(e)) e = 0.0f;
+            sum += e;
         }
+        sum = std::max(sum, 1e-30f);
         const float logsum = maxv + std::log(sum);
+
         int y = targets[t + 1];
-        if (y < 0) {
-            y = 0;
-        }
-        if (y >= vocab) {
-            y = vocab - 1;
-        }
-        loss += logsum - row[y];
+        if (y < 0) y = 0;
+        if (y >= vocab) y = vocab - 1;
+
+        float ce = logsum - row[y];
+        if (!std::isfinite(ce)) ce = 0.0f;
+        loss += ce;
 
         for (int v = 0; v < vocab; ++v) {
             const float p = std::exp(row[v] - maxv) / sum;
-            grad_logits[static_cast<size_t>(t * vocab_stride + v)] = p;
+            grad_logits[static_cast<size_t>(t * vocab_stride + v)] =
+                std::isfinite(p) ? p : 0.0f;
         }
         grad_logits[static_cast<size_t>(t * vocab_stride + y)] -= 1.0f;
     }

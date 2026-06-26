@@ -1,4 +1,5 @@
 #include "aurelis/convergence/efe.hpp"
+#include <algorithm>
 #include <vector>
 
 namespace aurelis::convergence {
@@ -32,9 +33,21 @@ EpistemicFrame EFE::assemble(const Tensor& c, const Tensor& e,
 }
 
 Tensor EFE::encode_frame(const EpistemicFrame& f) {
-    // Concatenate relevant parts of f and apply fce MLP
-    // For now, use dummy tensor
-    return Tensor::zeros({cfg_.D_bus});
+    Tensor summary = Tensor::zeros({cfg_.D_bus});
+
+    float content_sum = 0.0f;
+    for (int64_t i = 0; i < f.c.numel(); ++i) content_sum += f.c.at(i);
+    for (int64_t i = 0; i < f.e.numel(); ++i) content_sum += 0.5f * f.e.at(i);
+    for (int64_t i = 0; i < f.d.numel(); ++i) content_sum += 0.25f * f.d.at(i);
+    for (int64_t i = 0; i < f.alpha.numel(); ++i) content_sum += 0.1f * f.alpha.at(i);
+    for (int64_t i = 0; i < f.sigma.numel(); ++i) content_sum += 0.05f * f.sigma.at(i);
+
+    const float bias = 0.05f * (f.kappa + f.H_reason + 1.0f);
+    for (int64_t i = 0; i < cfg_.D_bus; ++i) {
+        summary.at(i) = bias + (content_sum / static_cast<float>(std::max<int64_t>(1, f.c.numel() + f.e.numel() + f.d.numel() + f.alpha.numel() + f.sigma.numel()))) + 0.01f * i;
+    }
+
+    return summary;
 }
 
 std::vector<Tensor> EFE::get_adapter_outputs(const Tensor& f_enc) {
