@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <numeric>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -114,6 +115,7 @@ int main(int argc, char** argv) {
     float lr = 0.01f;
     float lambda_aux = 0.01f;
     float lambda_stab = 0.01f;
+    int batch_size = 32; // Default batch size
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -139,6 +141,8 @@ int main(int argc, char** argv) {
             lambda_aux = parse_float_arg(argv[++i], lambda_aux);
         else if (arg == "--lambda-stab" && i + 1 < argc)
             lambda_stab = parse_float_arg(argv[++i], lambda_stab);
+        else if (arg == "--batch-size" && i + 1 < argc)
+            batch_size = parse_int_arg(argv[++i], batch_size);
     }
 
     /* Load data */
@@ -201,9 +205,9 @@ int main(int argc, char** argv) {
 
     printf("Aurelis LENS BPE training demo\n");
     printf("dataset=%s lines=%zu vocab=%d hidden=%d embed=%d ff=%d "
-           "layers=%d lr=%.4f train=%d eval=%d\n",
+           "layers=%d lr=%.4f batch=%d train=%d eval=%d\n",
            dataset_path.c_str(), dataset.size(), vocab_size, cfg.D,
-           cfg.d_model, cfg.d_ff, cfg.num_layers, cfg.lr, split,
+           cfg.d_model, cfg.d_ff, cfg.num_layers, cfg.lr, batch_size, split,
            static_cast<int>(dataset.size()) - split);
 
     float best_val_acc = 0.0f;
@@ -212,18 +216,49 @@ int main(int argc, char** argv) {
         float train_acc = 0.0f;
         int train_steps = 0;
 
-        for (int i = 0; i < split; ++i) {
-            if (i % 10 == 0 || i == split - 1) {
-                float progress = (float)(i + 1) / split * 100.0f;
-                printf("\r[TRAIN] Epoch %d: %.1f%% (%d/%d)", epoch, progress, i + 1, split);
+        // Shuffle training data
+        std::vector<int> indices(split);
+        std::iota(indices.begin(), indices.end(), 0);
+        std::random_shuffle(indices.begin(), indices.end());
+
+        for (int i = 0; i < split; i += batch_size) {
+            int current_batch_size = std::min(batch_size, split - i);
+            
+            if (i % 100 == 0 || i + current_batch_size >= split) {
+                float progress = (float)(i + current_batch_size) / split * 100.0f;
+                printf("\r[TRAIN] Epoch %d: %.1f%% (%d/%d)", epoch, progress, i + current_batch_size, split);
                 fflush(stdout);
             }
-            const auto& rec = dataset[i];
-            const auto step = model.train_step(
-                rec.tokens.data(), static_cast<int>(rec.tokens.size()));
-            train_loss += step.loss_total;
-            train_acc += compute_accuracy(model, rec.tokens, vocab_size);
-            ++train_steps;
+
+            // Accumulate gradients over batch (simple version: sequential updates)
+            // Since the model is currently optimized for single sequences, we'll keep sequential updates
+            // but the structure is ready for true batching if forward/backward are updated.
+            for (int b = 0; b < current_batch_size; ++b) {
+                const auto& rec = dataset[indices[i + b]];
+                const auto step = model.train_step(
+                    rec.tokens.data(), static_cast<int>(rec.tokens.size()));
+                train_loss += step.loss_total;
+                
+                // Optimized: Use logits from train_step instead of re-running forward
+                float correct = 0.0f;
+                const int steps = static_cast<int>(rec.tokens.size()) - 1;
+                if (steps > 0) {
+                    for (int t = 0; t < steps; ++t) {
+                        const int base = t * vocab_size;
+                        int best_id = 0;
+                        float best_score = step.logits[base];
+                        for (int j = 1; j < vocab_size; ++j) {
+                            if (step.logits[base + j] > best_score) {
+                                best_score = step.logits[base + j];
+                                best_id = j;
+                            }
+                        }
+                        if (best_id == rec.tokens[t + 1]) correct += 1.0f;
+                    }
+                    train_acc += correct / static_cast<float>(steps);
+                }
+                ++train_steps;
+            }
         }
         printf("\n");
 
@@ -261,12 +296,7 @@ int main(int argc, char** argv) {
         printf("seed: %s\n", tokenizer.decode(gen_tokens).c_str());
         
         for (int t = 0; t < 20; ++t) {
-            // LensModel::forward requires n >= 2
             if (gen_tokens.size() < 2) {
-                // If we have only 1 token, we can't use forward() yet.
-                // In a real scenario, we might need a special start token or 
-                // just append another token to get to n=2.
-                // For this demo, let's just ensure we have at least 2 tokens.
                 if (seed.tokens.size() >= 2) {
                     gen_tokens.push_back(seed.tokens[1]);
                 } else {
@@ -291,7 +321,6 @@ int main(int argc, char** argv) {
             }
             gen_tokens.push_back(best_id);
             
-            // Limit total generation length
             if (gen_tokens.size() > 50) break;
         }
         printf("gen:  %s\n", tokenizer.decode(gen_tokens).c_str());
