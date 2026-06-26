@@ -248,13 +248,32 @@ int main(int argc, char** argv) {
     printf("\n--- Generation sample ---\n");
     if (!dataset.empty()) {
         const auto& seed = dataset[0];
-        auto result = model.forward(seed.tokens.data(),
-                                    static_cast<int>(seed.tokens.size()));
-        std::vector<int> gen_tokens;
-        gen_tokens.push_back(seed.tokens[0]);
+        std::vector<int> gen_tokens = seed.tokens;
+        // Keep at most 5 tokens from seed to start generation
+        if (gen_tokens.size() > 5) gen_tokens.resize(5);
+        
+        printf("seed: %s\n", tokenizer.decode(gen_tokens).c_str());
+        
         for (int t = 0; t < 20; ++t) {
+            // LensModel::forward requires n >= 2
+            if (gen_tokens.size() < 2) {
+                // If we have only 1 token, we can't use forward() yet.
+                // In a real scenario, we might need a special start token or 
+                // just append another token to get to n=2.
+                // For this demo, let's just ensure we have at least 2 tokens.
+                if (seed.tokens.size() >= 2) {
+                    gen_tokens.push_back(seed.tokens[1]);
+                } else {
+                    gen_tokens.push_back(0); // Fallback
+                }
+                continue;
+            }
+
             auto fwd = model.forward(gen_tokens.data(),
                                      static_cast<int>(gen_tokens.size()));
+            
+            if (fwd.logits.empty()) break;
+
             const int last = static_cast<int>(gen_tokens.size()) - 1;
             int best_id = 0;
             float best_score = fwd.logits[last * vocab_size];
@@ -265,8 +284,10 @@ int main(int argc, char** argv) {
                 }
             }
             gen_tokens.push_back(best_id);
+            
+            // Limit total generation length
+            if (gen_tokens.size() > 50) break;
         }
-        printf("seed: %s\n", seed.text.c_str());
         printf("gen:  %s\n", tokenizer.decode(gen_tokens).c_str());
     }
 

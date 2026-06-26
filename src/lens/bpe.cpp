@@ -234,7 +234,7 @@ std::vector<int> BPETokenizer::bpe_encode(
         /* Find the best merge to apply (lowest priority index = earliest merge) */
         int best_priority = std::numeric_limits<int>::max();
         int best_pos = -1;
-        int best_left = 0, best_right = 0, best_new_id = 0;
+        int best_new_id = 0;
 
         for (size_t i = 0; i + 1 < tokens.size(); ++i) {
             auto it = merge_priority.find(
@@ -242,8 +242,6 @@ std::vector<int> BPETokenizer::bpe_encode(
             if (it != merge_priority.end() && it->second < best_priority) {
                 best_priority = it->second;
                 best_pos = static_cast<int>(i);
-                best_left = tokens[i];
-                best_right = tokens[i + 1];
                 best_new_id = merges_[it->second].new_id;
             }
         }

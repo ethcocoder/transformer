@@ -86,22 +86,30 @@ Linear Linear::load(const std::string& filepath) {
     }
 
     uint32_t magic;
-    fread(&magic, sizeof(magic), 1, f);
+    if (fread(&magic, sizeof(magic), 1, f) != 1) {
+        fclose(f);
+        throw std::runtime_error("Failed to read magic from Linear file");
+    }
     if (magic != 0x45525541) {
         fclose(f);
         throw std::runtime_error("Invalid Aurelis Linear file");
     }
 
     uint32_t version;
-    fread(&version, sizeof(version), 1, f);
+    if (fread(&version, sizeof(version), 1, f) != 1) {
+        fclose(f);
+        throw std::runtime_error("Failed to read version from Linear file");
+    }
     if (version != 1) {
         fclose(f);
         throw std::runtime_error("Unsupported Linear version");
     }
 
     int in, out;
-    fread(&in, sizeof(in), 1, f);
-    fread(&out, sizeof(out), 1, f);
+    if (fread(&in, sizeof(in), 1, f) != 1 || fread(&out, sizeof(out), 1, f) != 1) {
+        fclose(f);
+        throw std::runtime_error("Failed to read dimensions from Linear file");
+    }
     fclose(f);
 
     Linear linear(in, out);
