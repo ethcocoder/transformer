@@ -213,6 +213,11 @@ int main(int argc, char** argv) {
         int train_steps = 0;
 
         for (int i = 0; i < split; ++i) {
+            if (i % 10 == 0 || i == split - 1) {
+                float progress = (float)(i + 1) / split * 100.0f;
+                printf("\r[TRAIN] Epoch %d: %.1f%% (%d/%d)", epoch, progress, i + 1, split);
+                fflush(stdout);
+            }
             const auto& rec = dataset[i];
             const auto step = model.train_step(
                 rec.tokens.data(), static_cast<int>(rec.tokens.size()));
@@ -220,6 +225,7 @@ int main(int argc, char** argv) {
             train_acc += compute_accuracy(model, rec.tokens, vocab_size);
             ++train_steps;
         }
+        printf("\n");
 
         float val_acc = 0.0f;
         int val_steps = 0;
