@@ -1,6 +1,8 @@
 #include "aurelis/lens/bpe.hpp"
 
 #include <algorithm>
+#include <iostream>
+#include <iomanip>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
@@ -155,6 +157,13 @@ void BPETokenizer::train(const std::vector<std::string>& texts,
     merges_.reserve(static_cast<size_t>(num_merges));
 
     for (int merge_step = 0; merge_step < num_merges; ++merge_step) {
+        if (merge_step % 10 == 0 || merge_step == num_merges - 1) {
+            float progress = (float)(merge_step + 1) / num_merges * 100.0f;
+            std::cout << "\r[BPE] Training: " << std::fixed << std::setprecision(1) 
+                      << progress << "% (" << (merge_step + 1) << "/" << num_merges 
+                      << " merges)" << std::flush;
+        }
+
         /* Count all adjacent pairs across the corpus */
         PairCount pair_counts;
         for (const auto& word : corpus) {
@@ -198,6 +207,7 @@ void BPETokenizer::train(const std::vector<std::string>& texts,
             break;
         }
     }
+    std::cout << "\n[BPE] Training complete. Final vocab size: " << id_to_token_.size() << std::endl;
 
     build_vocab();
 }
