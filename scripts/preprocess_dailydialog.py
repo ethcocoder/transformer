@@ -18,6 +18,11 @@ OUTPUT_DIR = os.path.join(ROOT, "data")
 def extract_split(split_name):
     zip_path = os.path.join(DAILYDIALOG_DIR, f"{split_name}.zip")
     if not os.path.exists(zip_path):
+        archive_path = os.path.join(ROOT, "dailydialog_dataset_archive.zip")
+        if os.path.exists(archive_path):
+            import subprocess
+            subprocess.run(["unzip", "-j", archive_path, f"{split_name}.zip", "-d", DAILYDIALOG_DIR])
+    if not os.path.exists(zip_path):
         print(f"[WARN] {zip_path} not found, skipping")
         return []
 
